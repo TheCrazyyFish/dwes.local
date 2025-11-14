@@ -10,6 +10,9 @@ $router->get ('post', 'PagesController@post');
 $router->get ('galeria', 'GaleriaController@index');
 $router->post('galeria/nueva', 'GaleriaController@nueva');
 $router->get ('galeria/:id', 'GaleriaController@show');
+$router->get ('login', 'AuthController@login');
+$router->post('check-login', 'AuthController@checkLogin');
+$router->get ('logout', 'AuthController@logout');
 
 
 $router->post('asociado/nuevo', 'app/controllers/asociado_nuevo.php');

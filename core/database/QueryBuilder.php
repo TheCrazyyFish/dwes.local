@@ -1,5 +1,7 @@
 <?php
+
 namespace dwes\core\database;
+
 use dwes\app\exceptions\QueryException;
 use dwes\app\exceptions\NotFoundException;
 
@@ -57,27 +59,36 @@ valores. */
      * @throws QueryException
      */
     public function find(int $id): IEntity
-{
-    try {
-        $sql = "SELECT * FROM {$this->table} WHERE id = :id LIMIT 1";
-        $stmt = $this->connection->prepare($sql);
+    {
+        try {
+            $sql = "SELECT * FROM {$this->table} WHERE id = :id LIMIT 1";
+            $stmt = $this->connection->prepare($sql);
 
-        if ($stmt->execute([':id' => $id]) === false) {
-            throw new QueryException("No se ha podido ejecutar la query solicitada.");
+            if ($stmt->execute([':id' => $id]) === false) {
+                throw new QueryException("No se ha podido ejecutar la query solicitada.");
+            }
+
+            $stmt->setFetchMode(PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE, $this->classEntity);
+            $entity = $stmt->fetch();
+
+            if (!$entity) {
+                throw new NotFoundException("No se ha encontrado ningún elemento con id $id.");
+            }
+
+            return $entity;
+        } catch (PDOException $e) {
+            throw new QueryException("Error al ejecutar la consulta. " . $e->getMessage());
         }
-
-        $stmt->setFetchMode(PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE, $this->classEntity);
-        $entity = $stmt->fetch();
-
-        if (!$entity) {
-            throw new NotFoundException("No se ha encontrado ningún elemento con id $id.");
-        }
-
-        return $entity;
-    } catch (PDOException $e) {
-        throw new QueryException("Error al ejecutar la consulta. " . $e->getMessage());
     }
-}
+
+    private function executeQuery(string $sql, array $parameters = []): array
+    {
+        $pdoStatement = $this->connection->prepare($sql);
+        if ($pdoStatement->execute($parameters) === false)
+            throw new QueryException("No se ha podido ejecutar la query solicitada.");
+        return $pdoStatement->fetchAll(PDO::FETCH_CLASS | PDO::FETCH_PROPS_LATE, $this->classEntity);
+    }
+
 
     /**
      * @param IEntity $entity
@@ -97,7 +108,30 @@ valores. */
             $statement = $this->connection->prepare($sql);
             $statement->execute($parametrers);
         } catch (PDOException $exception) {
-            throw new QueryException("Error al insertar en la base de datos. ".$exception);
+            throw new QueryException("Error al insertar en la base de datos. " . $exception);
         }
+    }
+
+    public function findBy(array $filters): array
+    {
+        $sql = "SELECT * FROM $this->table " . $this->getFilters($filters);
+        return $this->executeQuery($sql, $filters);
+    }
+
+    public function getFilters(array $filters)
+    {
+        if (empty($filters)) return '';
+        $strFilters = [];
+        foreach ($filters as $key => $value)
+            $strFilters[] = $key . '=:' . $key;
+        return ' WHERE ' . implode(' and ', $strFilters);
+    }
+
+    public function findOneBy(array $filters): ?IEntity
+    {
+        $result = $this->findBy($filters);
+        if (count($result) > 0)
+            return $result[0];
+        return null;
     }
 }
